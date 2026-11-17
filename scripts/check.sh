@@ -5,7 +5,8 @@
 #  2. склад профілів збігається з таблицею 12.1;
 #  3. у stand.yml немає build: — стенд тільки тягне образи (12.6);
 #  4. versions.env і stand.yml описують ті самі сервіси, а теги закріплені;
-#  5. shell-скрипти хоча б парсяться.
+#  5. топіки в kafka-init.sh = топіки з events/registry.json (якщо kite-contracts поруч);
+#  6. shell-скрипти хоча б парсяться.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -84,6 +85,21 @@ if [ -n "$bad_images" ]; then
   err "сторонні образи без тега або з latest: $bad_images"
 else
   ok "сторонні образи закріплені"
+fi
+
+echo "Топіки Kafka (12.3)"
+registry="${KITE_CONTRACTS:-../kite-contracts}/events/registry.json"
+init_topics="$(sed -n '/^topics=(/,/^)/p' config/kafka/kafka-init.sh | grep -oE '^[[:space:]]+[a-z0-9.-]+' | tr -d ' ' | sort)"
+if [ -f "$registry" ]; then
+  reg_topics="$(grep -oE '"topic":[[:space:]]*"[^"]+"' "$registry" | sed -E 's/.*"([^"]+)"$/\1/' | sort -u)"
+  if [ "$init_topics" = "$reg_topics" ]; then
+    ok "kafka-init.sh збігається з registry.json ($(printf '%s\n' "$reg_topics" | wc -l | tr -d ' ') топіків)"
+  else
+    err "kafka-init.sh і registry.json розійшлися (< реєстр, > kafka-init):"
+    diff <(printf '%s\n' "$reg_topics") <(printf '%s\n' "$init_topics") | sed 's/^/      /' || true
+  fi
+else
+  ok "kite-contracts поруч немає — звірку з registry.json пропущено"
 fi
 
 echo "Скрипти"
