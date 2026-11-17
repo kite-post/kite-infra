@@ -1,0 +1,21 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Перевірка стенда
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # compose-конфіг, склад профілів (12.1), versions.env, скрипти.
+      # PR від bump-infra-version проходить цю ж перевірку перед мерджем.
+      - name: make test
+        run: make test

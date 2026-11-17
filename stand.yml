@@ -1,0 +1,612 @@
+# Стенд Kite: один файл, три профілі (12.1). Підключається з docker-compose.yml
+# разом із versions.env — запускати через `docker compose`, а не напряму.
+#
+# Нічого не збирається локально: усі образи — закріплені теги з versions.env.
+# Сервіс, який правиш, підмінює `make dev SERVICE=…` (docker-compose.override.yml).
+#
+# Порти на хості — таблиця 12.2. Усередині мережі кожен наш сервіс слухає 8080.
+
+# ── Спільні частини ─────────────────────────────────────────────────────────
+
+x-core: &core
+  profiles: [core, full]
+
+x-full: &full
+  profiles: [full]
+
+# Змінні, які отримує кожен Java-сервіс. Імена — стандартні властивості
+# Spring Boot, тож у сервісі нічого не треба прописувати під Docker.
+x-java-env: &java-env
+  SPRING_PROFILES_ACTIVE: docker
+  SPRING_DATASOURCE_PASSWORD: kite
+  SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+  SPRING_DATA_REDIS_HOST: redis
+  SPRING_DATA_REDIS_PORT: "6379"
+  # Токени Keycloak видає з iss=http://localhost:8081 (так їх бачить браузер),
+  # а ключі сервіс тягне всередині мережі.
+  SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://localhost:8081/realms/kite
+  SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8080/realms/kite/protocol/openid-connect/certs
+  MANAGEMENT_OTLP_TRACING_ENDPOINT: http://otel-collector:4318/v1/traces
+  MANAGEMENT_OTLP_METRICS_EXPORT_URL: http://otel-collector:4318/v1/metrics
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+
+x-s3-env: &s3-env
+  KITE_S3_ENDPOINT: http://minio:9000
+  KITE_S3_ACCESS_KEY: kite
+  KITE_S3_SECRET_KEY: kitekite
+  KITE_S3_REGION: us-east-1
+
+# Java-сервіс: ліміт 384 МБ і параметри JVM уже в образі (JAVA_TOOL_OPTIONS),
+# healthcheck на /actuator/health/readiness — теж в образі.
+x-java: &java
+  <<: *core
+  restart: unless-stopped
+  mem_limit: 384m
+  depends_on: &java-deps
+    postgres: { condition: service_healthy }
+    redis: { condition: service_healthy }
+    kafka-init: { condition: service_completed_successfully }
+
+# Go-сервіс: distroless-образ без shell, тому healthcheck тут немає —
+# залежні від нього сервіси чекають лише старту.
+x-go-env: &go-env
+  PORT: "8080"
+  KAFKA_BROKERS: kafka:19092
+  REDIS_ADDR: redis:6379
+  MQTT_URL: tcp://mosquitto:1883
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+
+x-go: &go
+  <<: *core
+  restart: unless-stopped
+  mem_limit: 128m
+  depends_on: &go-deps
+    postgres: { condition: service_healthy }
+    redis: { condition: service_healthy }
+    kafka-init: { condition: service_completed_successfully }
+
+x-web: &web
+  <<: *core
+  restart: unless-stopped
+  mem_limit: 64m
+
+services:
+  # ── Інфраструктура (core) ─────────────────────────────────────────────────
+
+  postgres:
+    <<: *core
+    image: ${POSTGRES_IMAGE}
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: kite
+      POSTGRES_PASSWORD: kite
+      POSTGRES_DB: kite
+    ports: ["5432:5432"]
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./config/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # Через TCP: під час init-скриптів тимчасовий сервер слухає лише сокет,
+      # тож здоровим postgres стає тільки коли всі бази вже створені.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U kite -d kite"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    <<: *core
+    image: ${REDIS_IMAGE}
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports: ["6379:6379"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  kafka:
+    <<: *core
+    image: ${KAFKA_IMAGE}
+    restart: unless-stopped
+    ports: ["9092:9092"]
+    environment:
+      CLUSTER_ID: kite-local-cluster-0001
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      # INTERNAL — для контейнерів (kafka:19092), EXTERNAL — для сервіса з IDE (localhost:9092).
+      KAFKA_LISTENERS: INTERNAL://:19092,EXTERNAL://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:19092,EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_NUM_PARTITIONS: 6
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_HEAP_OPTS: -Xms256m -Xmx512m
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:19092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 15s
+      retries: 20
+      start_period: 15s
+
+  # Топіки з events/registry.json у kite-contracts: по 6 розділів, фактор 1 (12.3).
+  kafka-init:
+    <<: *core
+    image: ${KAFKA_IMAGE}
+    restart: "no"
+    depends_on:
+      kafka: { condition: service_healthy }
+    entrypoint: ["/bin/bash", "/kafka-init.sh"]
+    volumes:
+      - ./config/kafka/kafka-init.sh:/kafka-init.sh:ro
+
+  mosquitto:
+    <<: *core
+    image: ${MOSQUITTO_IMAGE}
+    restart: unless-stopped
+    ports: ["1883:1883", "9883:9883"]
+    volumes:
+      - ./config/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto-data:/mosquitto/data
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -h 127.0.0.1 -t '$$SYS/broker/uptime' -C 1 -W 3"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    <<: *core
+    image: ${MINIO_IMAGE}
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: kite
+      MINIO_ROOT_PASSWORD: kitekite
+    ports: ["9000:9000", "9002:9001"]
+    volumes:
+      - minio-data:/data
+
+  # Бакети для етикеток, фото і моделей. Чекає MinIO сам — в образі MinIO
+  # немає інструмента для healthcheck, на який можна покластися.
+  minio-init:
+    <<: *core
+    image: ${MINIO_MC_IMAGE}
+    restart: "no"
+    depends_on:
+      minio: { condition: service_started }
+    entrypoint: ["/bin/sh", "/minio-init.sh"]
+    volumes:
+      - ./config/minio/minio-init.sh:/minio-init.sh:ro
+
+  keycloak:
+    <<: *core
+    image: ${KEYCLOAK_IMAGE}
+    restart: unless-stopped
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: kite
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+      # Браузер ходить на localhost:8081, сервіси — на keycloak:8080.
+      KC_HOSTNAME: http://localhost:8081
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      JAVA_OPTS_KC_HEAP: -XX:MaxRAMPercentage=70
+    mem_limit: 768m
+    ports: ["8081:8080"]
+    volumes:
+      - ./config/keycloak:/opt/keycloak/data/import:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+    healthcheck:
+      # В образі немає curl — питаємо порт керування напряму.
+      test:
+        - CMD-SHELL
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/9000 &&
+          printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+          grep -q '"UP"' <&3
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  mailpit:
+    <<: *core
+    image: ${MAILPIT_IMAGE}
+    restart: unless-stopped
+    ports: ["8025:8025", "1025:1025"]
+
+  # Векторні тайли України (PMTiles) — файл кладе `make tiles` у data/tiles.
+  tiles:
+    <<: *core
+    image: ${NGINX_IMAGE}
+    restart: unless-stopped
+    ports: ["8090:80"]
+    volumes:
+      - ./config/tiles/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./data/tiles:/usr/share/nginx/tiles:ro
+
+  # ── Java-сервіси (core) ───────────────────────────────────────────────────
+
+  api-gateway:
+    <<: *java
+    image: ${KITE_REGISTRY}/api-gateway:${API_GATEWAY_TAG:?немає в versions.env}
+    ports: ["8080:8080"]
+    environment:
+      <<: *java-env
+      OTEL_SERVICE_NAME: api-gateway
+      KITE_IMAGE_TAG: ${API_GATEWAY_TAG}
+    depends_on:
+      redis: { condition: service_healthy }
+      keycloak: { condition: service_healthy }
+
+  customer-service:
+    <<: *java
+    image: ${KITE_REGISTRY}/customer-service:${CUSTOMER_SERVICE_TAG:?немає в versions.env}
+    environment:
+      <<: *java-env
+      OTEL_SERVICE_NAME: customer-service
+      KITE_IMAGE_TAG: ${CUSTOMER_SERVICE_TAG}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/customer
+      SPRING_DATASOURCE_USERNAME: customer
+
+  shipment-service:
+    <<: *java
+    image: ${KITE_REGISTRY}/shipment-service:${SHIPMENT_SERVICE_TAG:?немає в versions.env}
+    environment:
+      <<: [*java-env, *s3-env]
+      OTEL_SERVICE_NAME: shipment-service
+      KITE_IMAGE_TAG: ${SHIPMENT_SERVICE_TAG}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/shipment
+      SPRING_DATASOURCE_USERNAME: shipment
+    depends_on:
+      <<: *java-deps
+      minio-init: { condition: service_completed_successfully }
+
+  pricing-service:
+    <<: *java
+    image: ${KITE_REGISTRY}/pricing-service:${PRICING_SERVICE_TAG:?немає в versions.env}
+    environment:
+      <<: *java-env
+      OTEL_SERVICE_NAME: pricing-service
+      KITE_IMAGE_TAG: ${PRICING_SERVICE_TAG}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/pricing
+      SPRING_DATASOURCE_USERNAME: pricing
+
+  network-service:
+    <<: *java
+    image: ${KITE_REGISTRY}/network-service:${NETWORK_SERVICE_TAG:?немає в versions.env}
+    environment:
+      <<: *java-env
+      OTEL_SERVICE_NAME: network-service
+      KITE_IMAGE_TAG: ${NETWORK_SERVICE_TAG}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/network
+      SPRING_DATASOURCE_USERNAME: network
+
+  logistics-service:
+    <<: *java
+    image: ${KITE_REGISTRY}/logistics-service:${LOGISTICS_SERVICE_TAG:?немає в versions.env}
+    environment:
+      <<: *java-env
+      OTEL_SERVICE_NAME: logistics-service
+      KITE_IMAGE_TAG: ${LOGISTICS_SERVICE_TAG}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/logistics
+      SPRING_DATASOURCE_USERNAME: logistics
+
+  tracking-service:
+    <<: *java
+    image: ${KITE_REGISTRY}/tracking-service:${TRACKING_SERVICE_TAG:?немає в versions.env}
+    environment:
+      <<: *java-env
+      OTEL_SERVICE_NAME: tracking-service
+      KITE_IMAGE_TAG: ${TRACKING_SERVICE_TAG}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/tracking
+      SPRING_DATASOURCE_USERNAME: tracking
+
+  payment-service:
+    <<: *java
+    image: ${KITE_REGISTRY}/payment-service:${PAYMENT_SERVICE_TAG:?немає в versions.env}
+    environment:
+      <<: *java-env
+      OTEL_SERVICE_NAME: payment-service
+      KITE_IMAGE_TAG: ${PAYMENT_SERVICE_TAG}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/payment
+      SPRING_DATASOURCE_USERNAME: payment
+      KITE_MOCK_PAY_URL: http://mock-pay:8080
+
+  notification-service:
+    <<: *java
+    image: ${KITE_REGISTRY}/notification-service:${NOTIFICATION_SERVICE_TAG:?немає в versions.env}
+    environment:
+      <<: *java-env
+      OTEL_SERVICE_NAME: notification-service
+      KITE_IMAGE_TAG: ${NOTIFICATION_SERVICE_TAG}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/notification
+      SPRING_DATASOURCE_USERNAME: notification
+      SPRING_MAIL_HOST: mailpit
+      SPRING_MAIL_PORT: "1025"
+      KITE_SMS_GATEWAY_URL: http://sms-gateway-emu:8080
+    depends_on:
+      <<: *java-deps
+      mailpit: { condition: service_started }
+
+  # ── Go-сервіси (core) ─────────────────────────────────────────────────────
+
+  scan-service:
+    <<: *go
+    image: ${KITE_REGISTRY}/scan-service:${SCAN_SERVICE_TAG:?немає в versions.env}
+    environment:
+      <<: *go-env
+      SERVICE_NAME: scan-service
+      OTEL_SERVICE_NAME: scan-service
+      KITE_IMAGE_TAG: ${SCAN_SERVICE_TAG}
+      DATABASE_URL: postgres://scan:kite@postgres:5432/scan?sslmode=disable
+    depends_on:
+      <<: *go-deps
+      mosquitto: { condition: service_healthy }
+
+  realtime-service:
+    <<: *go
+    image: ${KITE_REGISTRY}/realtime-service:${REALTIME_SERVICE_TAG:?немає в versions.env}
+    environment:
+      <<: *go-env
+      SERVICE_NAME: realtime-service
+      OTEL_SERVICE_NAME: realtime-service
+      KITE_IMAGE_TAG: ${REALTIME_SERVICE_TAG}
+    depends_on:
+      redis: { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
+
+  locker-service:
+    <<: *go
+    image: ${KITE_REGISTRY}/locker-service:${LOCKER_SERVICE_TAG:?немає в versions.env}
+    environment:
+      <<: *go-env
+      SERVICE_NAME: locker-service
+      OTEL_SERVICE_NAME: locker-service
+      KITE_IMAGE_TAG: ${LOCKER_SERVICE_TAG}
+      DATABASE_URL: postgres://locker:kite@postgres:5432/locker?sslmode=disable
+    depends_on:
+      <<: *go-deps
+      mosquitto: { condition: service_healthy }
+
+  mock-pay:
+    <<: *go
+    image: ${KITE_REGISTRY}/mock-pay:${MOCK_PAY_TAG:?немає в versions.env}
+    ports: ["8087:8080"]
+    environment:
+      <<: *go-env
+      SERVICE_NAME: mock-pay
+      OTEL_SERVICE_NAME: mock-pay
+      KITE_IMAGE_TAG: ${MOCK_PAY_TAG}
+      DATABASE_URL: postgres://mockpay:kite@postgres:5432/mockpay?sslmode=disable
+      PUBLIC_URL: http://localhost:8087
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  sms-gateway-emu:
+    <<: *go
+    image: ${KITE_REGISTRY}/sms-gateway-emu:${SMS_GATEWAY_EMU_TAG:?немає в versions.env}
+    ports: ["8088:8080"]
+    environment:
+      <<: *go-env
+      SERVICE_NAME: sms-gateway-emu
+      OTEL_SERVICE_NAME: sms-gateway-emu
+      KITE_IMAGE_TAG: ${SMS_GATEWAY_EMU_TAG}
+      # Емулятор: «телефон» живе, поки живе контейнер.
+      SQLITE_PATH: /tmp/sms.db
+    depends_on: {}
+
+  # ── Веб-застосунки (core) ─────────────────────────────────────────────────
+
+  kite-web:
+    <<: *web
+    image: ${KITE_REGISTRY}/kite-web:${KITE_WEB_TAG:?немає в versions.env}
+    ports: ["3000:80"]
+
+  kite-ops:
+    <<: *web
+    image: ${KITE_REGISTRY}/kite-ops:${KITE_OPS_TAG:?немає в versions.env}
+    ports: ["3002:80"]
+
+  kite-box-screen:
+    <<: *web
+    image: ${KITE_REGISTRY}/kite-box-screen:${KITE_BOX_SCREEN_TAG:?немає в versions.env}
+    ports: ["3003:80"]
+
+  # ── Лише в full ───────────────────────────────────────────────────────────
+
+  business-service:
+    <<: [*full, *java]
+    image: ${KITE_REGISTRY}/business-service:${BUSINESS_SERVICE_TAG:?немає в versions.env}
+    environment:
+      <<: *java-env
+      OTEL_SERVICE_NAME: business-service
+      KITE_IMAGE_TAG: ${BUSINESS_SERVICE_TAG}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/business
+      SPRING_DATASOURCE_USERNAME: business
+
+  care-service:
+    <<: [*full, *java]
+    image: ${KITE_REGISTRY}/care-service:${CARE_SERVICE_TAG:?немає в versions.env}
+    environment:
+      <<: [*java-env, *s3-env]
+      OTEL_SERVICE_NAME: care-service
+      KITE_IMAGE_TAG: ${CARE_SERVICE_TAG}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/care
+      SPRING_DATASOURCE_USERNAME: care
+    depends_on:
+      <<: *java-deps
+      minio-init: { condition: service_completed_successfully }
+
+  audit-service:
+    <<: [*full, *java]
+    image: ${KITE_REGISTRY}/audit-service:${AUDIT_SERVICE_TAG:?немає в versions.env}
+    environment:
+      <<: *java-env
+      OTEL_SERVICE_NAME: audit-service
+      KITE_IMAGE_TAG: ${AUDIT_SERVICE_TAG}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/audit
+      SPRING_DATASOURCE_USERNAME: audit
+
+  ai-service:
+    <<: *full
+    image: ${KITE_REGISTRY}/ai-service:${AI_SERVICE_TAG:?немає в versions.env}
+    restart: unless-stopped
+    mem_limit: 1g
+    environment:
+      <<: *s3-env
+      SERVICE_NAME: ai-service
+      OTEL_SERVICE_NAME: ai-service
+      KITE_IMAGE_TAG: ${AI_SERVICE_TAG}
+      PORT: "8080"
+      DATABASE_URL: postgresql://ai:kite@postgres:5432/ai
+      KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
+      minio-init: { condition: service_completed_successfully }
+
+  kite-business:
+    <<: [*full, *web]
+    image: ${KITE_REGISTRY}/kite-business:${KITE_BUSINESS_TAG:?немає в versions.env}
+    ports: ["3001:80"]
+
+  # Геокодер з українським вилученням OSM. Перший старт завантажує індекс
+  # (кілька ГБ) у том photon-data, далі піднімається за секунди.
+  photon:
+    <<: *full
+    image: ${PHOTON_IMAGE}
+    restart: unless-stopped
+    environment:
+      REGION: ua
+      UPDATE_STRATEGY: DISABLED
+    ports: ["2322:2322"]
+    volumes:
+      - photon-data:/photon/data
+
+  kafka-ui:
+    <<: *full
+    image: ${KAFKA_UI_IMAGE}
+    restart: unless-stopped
+    ports: ["8085:8080"]
+    environment:
+      KAFKA_CLUSTERS_0_NAME: kite
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:19092
+    depends_on:
+      kafka: { condition: service_healthy }
+
+  # ── Спостережуваність (obs) ───────────────────────────────────────────────
+
+  otel-collector:
+    profiles: [obs]
+    image: ${OTEL_COLLECTOR_IMAGE}
+    restart: unless-stopped
+    command: ["--config=/etc/otelcol/config.yaml"]
+    ports: ["4317:4317", "4318:4318"]
+    volumes:
+      - ./config/obs/otel-collector.yaml:/etc/otelcol/config.yaml:ro
+    depends_on:
+      loki: { condition: service_started }
+      tempo: { condition: service_started }
+
+  prometheus:
+    profiles: [obs]
+    image: ${PROMETHEUS_IMAGE}
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=3d
+      - --web.enable-remote-write-receiver
+    volumes:
+      - ./config/obs/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+
+  loki:
+    profiles: [obs]
+    image: ${LOKI_IMAGE}
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki/local-config.yaml"]
+    volumes:
+      - loki-data:/loki
+
+  tempo:
+    profiles: [obs]
+    image: ${TEMPO_IMAGE}
+    restart: unless-stopped
+    # Образ працює від uid 10001, а свіжий том належить root.
+    user: "0"
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    volumes:
+      - ./config/obs/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo-data:/var/tempo
+
+  grafana:
+    profiles: [obs]
+    image: ${GRAFANA_IMAGE}
+    restart: unless-stopped
+    ports: ["3300:3000"]
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+    volumes:
+      - ./config/obs/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      prometheus: { condition: service_started }
+      loki: { condition: service_started }
+      tempo: { condition: service_started }
+
+  # ── Разові інструменти (make seed, make tiles) ────────────────────────────
+
+  seed:
+    profiles: [tools]
+    image: ${PYTHON_IMAGE}
+    working_dir: /seed
+    command: ["python", "seed.py"]
+    environment:
+      DATABASE_HOST: postgres
+      KITE_API_URL: http://api-gateway:8080/api/v1
+      KEYCLOAK_URL: http://keycloak:8080
+      PHOTON_URL: http://photon:2322
+    volumes:
+      - ./seed:/seed:ro
+    # required: false — щоб профіль tools (make tiles) був валідним і без core.
+    depends_on:
+      postgres: { condition: service_healthy, required: false }
+
+  pmtiles:
+    profiles: [tools]
+    image: ${PMTILES_IMAGE}
+    volumes:
+      - ./data/tiles:/out
+
+volumes:
+  postgres-data:
+  redis-data:
+  kafka-data:
+  mosquitto-data:
+  minio-data:
+  photon-data:
+  prometheus-data:
+  loki-data:
+  tempo-data:
+  grafana-data:

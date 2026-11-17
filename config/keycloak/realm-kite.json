@@ -1,0 +1,328 @@
+{
+  "realm": "kite",
+  "enabled": true,
+  "displayName": "Kite",
+  "internationalizationEnabled": true,
+  "supportedLocales": [
+    "uk",
+    "en"
+  ],
+  "defaultLocale": "uk",
+  "registrationAllowed": true,
+  "loginWithEmailAllowed": true,
+  "resetPasswordAllowed": true,
+  "accessTokenLifespan": 900,
+  "sslRequired": "none",
+  "roles": {
+    "realm": [
+      {
+        "name": "CLIENT",
+        "description": "Фізособа: відправник і отримувач"
+      },
+      {
+        "name": "BIZ_OWNER",
+        "description": "Власник бізнес-акаунта"
+      },
+      {
+        "name": "BIZ_MEMBER",
+        "description": "Працівник бізнесу"
+      },
+      {
+        "name": "OPERATOR",
+        "description": "Оператор відділення"
+      },
+      {
+        "name": "SORTER",
+        "description": "Сортувальник"
+      },
+      {
+        "name": "SHIFT_MANAGER",
+        "description": "Начальник зміни хабу"
+      },
+      {
+        "name": "DRIVER",
+        "description": "Водій магістралі"
+      },
+      {
+        "name": "DISPATCHER",
+        "description": "Диспетчер мережі"
+      },
+      {
+        "name": "SUPPORT",
+        "description": "Підтримка"
+      },
+      {
+        "name": "ADMIN",
+        "description": "Адміністратор"
+      },
+      {
+        "name": "SYSTEM",
+        "description": "Сервісні акаунти: Kite Box, сканери, симулятор"
+      }
+    ]
+  },
+  "defaultRole": {
+    "name": "default-roles-kite",
+    "composite": true,
+    "composites": {
+      "realm": [
+        "CLIENT",
+        "offline_access",
+        "uma_authorization"
+      ]
+    }
+  },
+  "clients": [
+    {
+      "clientId": "kite-web",
+      "name": "Kite Web",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": [
+        "http://localhost:3000/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3000"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:3000/*"
+      }
+    },
+    {
+      "clientId": "kite-business",
+      "name": "Kite Business",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": [
+        "http://localhost:3001/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3001"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:3001/*"
+      }
+    },
+    {
+      "clientId": "kite-ops",
+      "name": "Kite Ops",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": [
+        "http://localhost:3002/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3002"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:3002/*"
+      }
+    },
+    {
+      "clientId": "kite-mobile",
+      "name": "Kite Mobile",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": [
+        "ua.kite.mobile:/oauth2redirect",
+        "http://localhost:*"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      }
+    }
+  ],
+  "users": [
+    {
+      "username": "client",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "client@kite.local",
+      "firstName": "Фізособа",
+      "lastName": "Тестовий",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "kite",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "CLIENT"
+      ]
+    },
+    {
+      "username": "biz-owner",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "biz-owner@kite.local",
+      "firstName": "Власник бізнес-акаунта",
+      "lastName": "Тестовий",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "kite",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "BIZ_OWNER"
+      ]
+    },
+    {
+      "username": "biz-member",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "biz-member@kite.local",
+      "firstName": "Працівник бізнесу",
+      "lastName": "Тестовий",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "kite",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "BIZ_MEMBER"
+      ]
+    },
+    {
+      "username": "operator",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "operator@kite.local",
+      "firstName": "Оператор відділення",
+      "lastName": "Тестовий",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "kite",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "OPERATOR"
+      ]
+    },
+    {
+      "username": "sorter",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "sorter@kite.local",
+      "firstName": "Сортувальник",
+      "lastName": "Тестовий",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "kite",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "SORTER"
+      ]
+    },
+    {
+      "username": "shift-manager",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "shift-manager@kite.local",
+      "firstName": "Начальник зміни хабу",
+      "lastName": "Тестовий",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "kite",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "SHIFT_MANAGER"
+      ]
+    },
+    {
+      "username": "driver",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "driver@kite.local",
+      "firstName": "Водій магістралі",
+      "lastName": "Тестовий",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "kite",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "DRIVER"
+      ]
+    },
+    {
+      "username": "dispatcher",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "dispatcher@kite.local",
+      "firstName": "Диспетчер мережі",
+      "lastName": "Тестовий",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "kite",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "DISPATCHER"
+      ]
+    },
+    {
+      "username": "support",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "support@kite.local",
+      "firstName": "Підтримка",
+      "lastName": "Тестовий",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "kite",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "SUPPORT"
+      ]
+    },
+    {
+      "username": "admin",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "admin@kite.local",
+      "firstName": "Адміністратор",
+      "lastName": "Тестовий",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "kite",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "ADMIN"
+      ]
+    }
+  ]
+}

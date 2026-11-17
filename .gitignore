@@ -1,0 +1,9 @@
+# Пише `make dev`: локальна підміна одного сервіса — у кожного своя.
+docker-compose.override.yml
+docker-compose.override.yml.off
+# Тайли важать сотні МБ — завантажує `make tiles`.
+data/tiles/*
+!data/tiles/.gitkeep
+.idea/
+.vscode/
+.DS_Store

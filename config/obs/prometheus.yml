@@ -1,0 +1,30 @@
+# Метрики приходять від OTel Collector через remote write; окремо скрейпимо
+# actuator Java-сервісів — він є у шаблоні з першого дня.
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: [localhost:9090]
+
+  - job_name: kite-java
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - api-gateway:8080
+          - customer-service:8080
+          - business-service:8080
+          - shipment-service:8080
+          - pricing-service:8080
+          - network-service:8080
+          - logistics-service:8080
+          - tracking-service:8080
+          - payment-service:8080
+          - notification-service:8080
+          - care-service:8080
+          - audit-service:8080
+    relabel_configs:
+      - source_labels: [__address__]
+        regex: '([^:]+):.*'
+        target_label: service

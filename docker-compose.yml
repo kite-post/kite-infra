@@ -1,0 +1,16 @@
+# Точка входу стенда Kite (12.1, 12.6).
+#
+#   docker compose --profile core up -d     # core: інфраструктура + сервіси MVP
+#   docker compose --profile full up -d     # full: core + business, care, audit, ai …
+#   docker compose --profile obs  up -d     # obs:  OTel Collector, Prometheus, Loki, Tempo, Grafana
+#
+# Сам стенд описаний у stand.yml; тут він лише підключається разом із
+# versions.env, щоб теги образів підставлялися без --env-file (файл .env
+# цього не вміє). docker-compose.override.yml, який пише `make dev`,
+# накладається поверх автоматично.
+
+name: kite
+
+include:
+  - path: stand.yml
+    env_file: versions.env
