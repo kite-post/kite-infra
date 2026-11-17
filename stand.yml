@@ -176,15 +176,21 @@ services:
     ports: ["9000:9000", "9002:9001"]
     volumes:
       - minio-data:/data
+    healthcheck:
+      # /ready, а не /live: 200 лише тоді, коли сервер уже приймає запити.
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:9000/minio/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
 
-  # Бакети для етикеток, фото і моделей. Чекає MinIO сам — в образі MinIO
-  # немає інструмента для healthcheck, на який можна покластися.
+  # Бакети для етикеток, фото і моделей.
   minio-init:
     <<: *core
     image: ${MINIO_MC_IMAGE}
     restart: "no"
     depends_on:
-      minio: { condition: service_started }
+      minio: { condition: service_healthy }
     entrypoint: ["/bin/sh", "/minio-init.sh"]
     volumes:
       - ./config/minio/minio-init.sh:/minio-init.sh:ro

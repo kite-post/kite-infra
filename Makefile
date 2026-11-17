@@ -11,13 +11,27 @@ SRC     ?= ../$(SERVICE)
 FORCE   ?=
 
 ALL_PROFILES := --profile full --profile obs --profile tools
+# Інфраструктура з healthcheck (12.3, крок 1) і її разові init-контейнери.
+INFRA      := postgres redis kafka mosquitto minio
+INFRA_INIT := kafka-init minio-init
 
 .DEFAULT_GOAL := help
-.PHONY: help up up-full obs down down-v pull bump dev dev-off seed tiles test smoke ps logs released
+.PHONY: help infra up up-full obs down down-v pull bump dev dev-off seed tiles test smoke ps logs released
 
 help: ## Показати цілі
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-10s\033[0m %s\n", $$1, $$2}'
+
+infra: ## Лише інфраструктура: Postgres, Redis, Kafka, Mosquitto, MinIO + топіки й бакети
+	$(COMPOSE) --profile core up -d --wait $(INFRA)
+	@# --wait вважає вихід разового контейнера збоєм навіть із кодом 0, тож
+	@# init-контейнери запускаємо окремо і самі перевіряємо їхній код виходу.
+	$(COMPOSE) --profile core up --no-log-prefix $(INFRA_INIT)
+	@for s in $(INFRA_INIT); do \
+		code="$$($(COMPOSE) ps -a --format '{{.ExitCode}}' $$s)"; \
+		[ "$$code" = 0 ] || { echo "$$s завершився з кодом $$code" >&2; exit 1; }; \
+	done
+	@echo "Інфраструктура здорова, топіки й бакети створені."
 
 up: ## Підняти профіль core (~7 ГБ)
 	@$(MAKE) --no-print-directory released PROFILE=core

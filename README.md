@@ -9,6 +9,7 @@
 ## Швидкий старт
 
 ```bash
+make infra       # лише інфраструктура; чекає, поки всі контейнери стануть healthy
 make up          # профіль core, ~7 ГБ RAM
 make obs         # + Grafana на http://localhost:3300
 make smoke       # що з портів 12.2 відповідає
@@ -36,6 +37,7 @@ make down-v      # зупинити й видалити дані
 
 | Команда                         | Що робить                                                                   |
 | ------------------------------- | --------------------------------------------------------------------------- |
+| `make infra`                    | Postgres+PostGIS, Redis, Kafka (KRaft), Mosquitto, MinIO з healthcheck, топіки й бакети; повертається, коли все здорове |
 | `make up` / `make up-full`      | Підняти core / full; спершу перевіряє, що всі сервіси вже опубліковані      |
 | `make obs`                      | Підняти спостережуваність                                                   |
 | `make pull [PROFILE=full]`      | Підтягнути образи поточних версій із GHCR                                   |
@@ -77,8 +79,12 @@ make dev SERVICE=shipment-service
 `kite-contracts` із GitHub Packages, підхоплюється `~/.m2/settings.xml`
 (або `M2_SETTINGS=…`) як секрет BuildKit.
 
-Сервіс можна запускати й з IDE: інфраструктура доступна з хоста на портах
-нижче, Kafka — на `localhost:9092`.
+Сервіс можна запускати й з IDE: `make infra` піднімає лише інфраструктуру,
+вона доступна з хоста на портах нижче, Kafka — на `localhost:9092`.
+
+У кожного інфраструктурного контейнера є healthcheck, і сервіси стартують
+через `depends_on: condition: service_healthy` (12.3); `kafka-init` і
+`minio-init` — через `service_completed_successfully`.
 
 ## Що отримує сервіс у контейнері
 
