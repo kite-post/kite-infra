@@ -5,6 +5,7 @@ COMPOSE ?= docker compose
 # Профіль для pull / dev / seed: core, full.
 PROFILE ?= core
 SERVICE ?=
+ROLE    ?=
 TAG     ?=
 SRC     ?= ../$(SERVICE)
 # FORCE=1 — підняти стенд, навіть якщо частина сервісів ще не опублікована.
@@ -16,7 +17,7 @@ INFRA      := postgres redis kafka mosquitto minio
 INFRA_INIT := kafka-init minio-init
 
 .DEFAULT_GOAL := help
-.PHONY: help infra up up-full obs down down-v pull bump dev dev-off seed tiles test smoke ps logs released
+.PHONY: help infra up up-full obs down down-v pull bump dev dev-off seed token tiles test smoke ps logs released
 
 help: ## Показати цілі
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -68,6 +69,9 @@ dev-off: ## Повернути всі сервіси на образи з versio
 
 seed: ## Перезалити сид-дані
 	$(COMPOSE) --profile $(PROFILE) run --rm seed
+
+token: ## JWT тестового користувача: ROLE=operator (V=1 — показати payload)
+	@scripts/token.sh "$(ROLE)" $(if $(V),-v)
 
 tiles: ## Завантажити й обрізати тайли України → data/tiles
 	@scripts/tiles.sh

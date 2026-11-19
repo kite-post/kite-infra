@@ -8,11 +8,20 @@
     "en"
   ],
   "defaultLocale": "uk",
+  "sslRequired": "none",
   "registrationAllowed": true,
   "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
   "resetPasswordAllowed": true,
-  "accessTokenLifespan": 900,
-  "sslRequired": "none",
+  "bruteForceProtected": true,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "otpPolicyType": "totp",
+  "otpPolicyAlgorithm": "HmacSHA1",
+  "otpPolicyDigits": 6,
+  "otpPolicyPeriod": 30,
+  "otpPolicyCodeReusable": true,
   "roles": {
     "realm": [
       {
@@ -25,7 +34,7 @@
       },
       {
         "name": "BIZ_MEMBER",
-        "description": "Працівник бізнесу"
+        "description": "Працівник бізнесу (склад, менеджер)"
       },
       {
         "name": "OPERATOR",
@@ -57,7 +66,7 @@
       },
       {
         "name": "SYSTEM",
-        "description": "Сервісні акаунти: Kite Box, сканери, симулятор"
+        "description": "Сервісні акаунти: Kite Box, сканери-заглушки, симулятор"
       }
     ]
   },
@@ -79,7 +88,10 @@
       "enabled": true,
       "publicClient": true,
       "standardFlowEnabled": true,
-      "directAccessGrantsEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": true,
       "redirectUris": [
         "http://localhost:3000/*"
       ],
@@ -89,7 +101,21 @@
       "attributes": {
         "pkce.code.challenge.method": "S256",
         "post.logout.redirect.uris": "http://localhost:3000/*"
-      }
+      },
+      "protocolMappers": [
+        {
+          "name": "audience-kite-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "kite-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
     },
     {
       "clientId": "kite-business",
@@ -97,7 +123,10 @@
       "enabled": true,
       "publicClient": true,
       "standardFlowEnabled": true,
-      "directAccessGrantsEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": true,
       "redirectUris": [
         "http://localhost:3001/*"
       ],
@@ -107,7 +136,21 @@
       "attributes": {
         "pkce.code.challenge.method": "S256",
         "post.logout.redirect.uris": "http://localhost:3001/*"
-      }
+      },
+      "protocolMappers": [
+        {
+          "name": "audience-kite-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "kite-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
     },
     {
       "clientId": "kite-ops",
@@ -115,7 +158,10 @@
       "enabled": true,
       "publicClient": true,
       "standardFlowEnabled": true,
-      "directAccessGrantsEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": true,
       "redirectUris": [
         "http://localhost:3002/*"
       ],
@@ -125,7 +171,21 @@
       "attributes": {
         "pkce.code.challenge.method": "S256",
         "post.logout.redirect.uris": "http://localhost:3002/*"
-      }
+      },
+      "protocolMappers": [
+        {
+          "name": "audience-kite-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "kite-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
     },
     {
       "clientId": "kite-mobile",
@@ -133,24 +193,173 @@
       "enabled": true,
       "publicClient": true,
       "standardFlowEnabled": true,
-      "directAccessGrantsEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
       "redirectUris": [
         "ua.kite.mobile:/oauth2redirect",
-        "http://localhost:*"
+        "http://127.0.0.1/*"
       ],
       "attributes": {
-        "pkce.code.challenge.method": "S256"
-      }
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "ua.kite.mobile:/logout"
+      },
+      "protocolMappers": [
+        {
+          "name": "audience-kite-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "kite-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "kite-dev-cli",
+      "name": "Kite Dev CLI",
+      "description": "Лише стенд: password grant для make token і тестів. У продакшн-realm його немає.",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "protocolMappers": [
+        {
+          "name": "audience-kite-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "kite-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "kite-box",
+      "name": "Kite Box",
+      "description": "Пристрої Kite Box (роль SYSTEM)",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${KITE_BOX_CLIENT_SECRET:kite-box-secret}",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "protocolMappers": [
+        {
+          "name": "audience-kite-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "kite-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "kite-scanner-emu",
+      "name": "Стаціонарні сканери-заглушки",
+      "description": "Сканери-заглушки (роль SYSTEM)",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${KITE_SCANNER_EMU_CLIENT_SECRET:kite-scanner-emu-secret}",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "protocolMappers": [
+        {
+          "name": "audience-kite-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "kite-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "kite-simulator",
+      "name": "Симулятор",
+      "description": "Симулятор потоку посилок (роль SYSTEM)",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${KITE_SIMULATOR_CLIENT_SECRET:kite-simulator-secret}",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "protocolMappers": [
+        {
+          "name": "audience-kite-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "kite-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "kite-users-admin",
+      "name": "Фасад /ops/users",
+      "description": "Сервісний акаунт фасаду /ops/users над Admin API Keycloak",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${KITE_USERS_ADMIN_CLIENT_SECRET:kite-users-admin-secret}",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "protocolMappers": [
+        {
+          "name": "audience-kite-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "kite-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
     }
   ],
   "users": [
     {
+      "id": "0193a000-0000-7000-8000-000000000001",
       "username": "client",
       "enabled": true,
       "emailVerified": true,
       "email": "client@kite.local",
-      "firstName": "Фізособа",
-      "lastName": "Тестовий",
+      "firstName": "Ольга",
+      "lastName": "Клієнтка",
       "credentials": [
         {
           "type": "password",
@@ -163,12 +372,32 @@
       ]
     },
     {
+      "id": "0193a000-0000-7000-8000-000000000002",
+      "username": "client-2",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "client-2@kite.local",
+      "firstName": "Тарас",
+      "lastName": "Клієнт",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "kite",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "CLIENT"
+      ]
+    },
+    {
+      "id": "0193a000-0000-7000-8000-000000000003",
       "username": "biz-owner",
       "enabled": true,
       "emailVerified": true,
       "email": "biz-owner@kite.local",
-      "firstName": "Власник бізнес-акаунта",
-      "lastName": "Тестовий",
+      "firstName": "Ірина",
+      "lastName": "Власниця",
       "credentials": [
         {
           "type": "password",
@@ -181,12 +410,13 @@
       ]
     },
     {
+      "id": "0193a000-0000-7000-8000-000000000004",
       "username": "biz-member",
       "enabled": true,
       "emailVerified": true,
       "email": "biz-member@kite.local",
-      "firstName": "Працівник бізнесу",
-      "lastName": "Тестовий",
+      "firstName": "Максим",
+      "lastName": "Складський",
       "credentials": [
         {
           "type": "password",
@@ -199,17 +429,24 @@
       ]
     },
     {
+      "id": "0193a000-0000-7000-8000-000000000005",
       "username": "operator",
       "enabled": true,
       "emailVerified": true,
       "email": "operator@kite.local",
-      "firstName": "Оператор відділення",
-      "lastName": "Тестовий",
+      "firstName": "Наталія",
+      "lastName": "Операторка",
       "credentials": [
         {
           "type": "password",
           "value": "kite",
           "temporary": false
+        },
+        {
+          "type": "otp",
+          "userLabel": "Стенд Kite",
+          "secretData": "{\"value\": \"KiteStandTotpSecret1\"}",
+          "credentialData": "{\"subType\": \"totp\", \"digits\": 6, \"counter\": 0, \"period\": 30, \"algorithm\": \"HmacSHA1\"}"
         }
       ],
       "realmRoles": [
@@ -217,17 +454,24 @@
       ]
     },
     {
+      "id": "0193a000-0000-7000-8000-000000000006",
       "username": "sorter",
       "enabled": true,
       "emailVerified": true,
       "email": "sorter@kite.local",
-      "firstName": "Сортувальник",
-      "lastName": "Тестовий",
+      "firstName": "Богдан",
+      "lastName": "Сортувальник",
       "credentials": [
         {
           "type": "password",
           "value": "kite",
           "temporary": false
+        },
+        {
+          "type": "otp",
+          "userLabel": "Стенд Kite",
+          "secretData": "{\"value\": \"KiteStandTotpSecret1\"}",
+          "credentialData": "{\"subType\": \"totp\", \"digits\": 6, \"counter\": 0, \"period\": 30, \"algorithm\": \"HmacSHA1\"}"
         }
       ],
       "realmRoles": [
@@ -235,17 +479,24 @@
       ]
     },
     {
+      "id": "0193a000-0000-7000-8000-000000000007",
       "username": "shift-manager",
       "enabled": true,
       "emailVerified": true,
       "email": "shift-manager@kite.local",
-      "firstName": "Начальник зміни хабу",
-      "lastName": "Тестовий",
+      "firstName": "Оксана",
+      "lastName": "Змінна",
       "credentials": [
         {
           "type": "password",
           "value": "kite",
           "temporary": false
+        },
+        {
+          "type": "otp",
+          "userLabel": "Стенд Kite",
+          "secretData": "{\"value\": \"KiteStandTotpSecret1\"}",
+          "credentialData": "{\"subType\": \"totp\", \"digits\": 6, \"counter\": 0, \"period\": 30, \"algorithm\": \"HmacSHA1\"}"
         }
       ],
       "realmRoles": [
@@ -253,17 +504,24 @@
       ]
     },
     {
+      "id": "0193a000-0000-7000-8000-000000000008",
       "username": "driver",
       "enabled": true,
       "emailVerified": true,
       "email": "driver@kite.local",
-      "firstName": "Водій магістралі",
-      "lastName": "Тестовий",
+      "firstName": "Василь",
+      "lastName": "Водій",
       "credentials": [
         {
           "type": "password",
           "value": "kite",
           "temporary": false
+        },
+        {
+          "type": "otp",
+          "userLabel": "Стенд Kite",
+          "secretData": "{\"value\": \"KiteStandTotpSecret1\"}",
+          "credentialData": "{\"subType\": \"totp\", \"digits\": 6, \"counter\": 0, \"period\": 30, \"algorithm\": \"HmacSHA1\"}"
         }
       ],
       "realmRoles": [
@@ -271,17 +529,24 @@
       ]
     },
     {
+      "id": "0193a000-0000-7000-8000-000000000009",
       "username": "dispatcher",
       "enabled": true,
       "emailVerified": true,
       "email": "dispatcher@kite.local",
-      "firstName": "Диспетчер мережі",
-      "lastName": "Тестовий",
+      "firstName": "Андрій",
+      "lastName": "Диспетчер",
       "credentials": [
         {
           "type": "password",
           "value": "kite",
           "temporary": false
+        },
+        {
+          "type": "otp",
+          "userLabel": "Стенд Kite",
+          "secretData": "{\"value\": \"KiteStandTotpSecret1\"}",
+          "credentialData": "{\"subType\": \"totp\", \"digits\": 6, \"counter\": 0, \"period\": 30, \"algorithm\": \"HmacSHA1\"}"
         }
       ],
       "realmRoles": [
@@ -289,17 +554,24 @@
       ]
     },
     {
+      "id": "0193a000-0000-7000-8000-000000000010",
       "username": "support",
       "enabled": true,
       "emailVerified": true,
       "email": "support@kite.local",
-      "firstName": "Підтримка",
-      "lastName": "Тестовий",
+      "firstName": "Марія",
+      "lastName": "Підтримка",
       "credentials": [
         {
           "type": "password",
           "value": "kite",
           "temporary": false
+        },
+        {
+          "type": "otp",
+          "userLabel": "Стенд Kite",
+          "secretData": "{\"value\": \"KiteStandTotpSecret1\"}",
+          "credentialData": "{\"subType\": \"totp\", \"digits\": 6, \"counter\": 0, \"period\": 30, \"algorithm\": \"HmacSHA1\"}"
         }
       ],
       "realmRoles": [
@@ -307,22 +579,70 @@
       ]
     },
     {
+      "id": "0193a000-0000-7000-8000-000000000011",
       "username": "admin",
       "enabled": true,
       "emailVerified": true,
       "email": "admin@kite.local",
-      "firstName": "Адміністратор",
-      "lastName": "Тестовий",
+      "firstName": "Олег",
+      "lastName": "Адмін",
       "credentials": [
         {
           "type": "password",
           "value": "kite",
           "temporary": false
+        },
+        {
+          "type": "otp",
+          "userLabel": "Стенд Kite",
+          "secretData": "{\"value\": \"KiteStandTotpSecret1\"}",
+          "credentialData": "{\"subType\": \"totp\", \"digits\": 6, \"counter\": 0, \"period\": 30, \"algorithm\": \"HmacSHA1\"}"
         }
       ],
       "realmRoles": [
         "ADMIN"
       ]
+    },
+    {
+      "id": "0193a000-0000-7000-8000-000000000101",
+      "username": "service-account-kite-box",
+      "enabled": true,
+      "serviceAccountClientId": "kite-box",
+      "realmRoles": [
+        "SYSTEM"
+      ]
+    },
+    {
+      "id": "0193a000-0000-7000-8000-000000000102",
+      "username": "service-account-kite-scanner-emu",
+      "enabled": true,
+      "serviceAccountClientId": "kite-scanner-emu",
+      "realmRoles": [
+        "SYSTEM"
+      ]
+    },
+    {
+      "id": "0193a000-0000-7000-8000-000000000103",
+      "username": "service-account-kite-simulator",
+      "enabled": true,
+      "serviceAccountClientId": "kite-simulator",
+      "realmRoles": [
+        "SYSTEM"
+      ]
+    },
+    {
+      "id": "0193a000-0000-7000-8000-000000000104",
+      "username": "service-account-kite-users-admin",
+      "enabled": true,
+      "serviceAccountClientId": "kite-users-admin",
+      "realmRoles": [],
+      "clientRoles": {
+        "realm-management": [
+          "manage-users",
+          "view-users",
+          "query-users"
+        ]
+      }
     }
   ]
 }

@@ -107,15 +107,70 @@ make dev SERVICE=shipment-service
 | --------------- | -------------------------- | ------------------------------------------------------ |
 | api-gateway     | http://localhost:8080/api/v1 | —                                                    |
 | Keycloak        | http://localhost:8081      | `admin` / `admin`; realm `kite`                        |
-| Тестові люди    | realm `kite`               | `client`, `operator`, `sorter`, `admin`, … / `kite`     |
+| Тестові люди    | realm `kite`               | `client`, `operator`, `sorter`, `admin`, … / `kite`; персонал — ще TOTP (нижче) |
 | PostgreSQL      | localhost:5432             | `kite` / `kite` (суперкористувач)                       |
 | MinIO           | http://localhost:9002      | `kite` / `kitekite`; бакети `labels`, `photos`, `models` |
 | Mailpit         | http://localhost:8025      | —                                                      |
 | Kafka UI        | http://localhost:8085      | — (full)                                               |
 | Grafana         | http://localhost:3300      | анонімний адмін (obs)                                  |
 
-Повна таблиця портів — 12.2. Тестовий користувач є на кожну роль із 03
-(`biz-owner`, `shift-manager` тощо), пароль усюди `kite`.
+Повна таблиця портів — 12.2.
+
+## Keycloak: realm `kite`
+
+Realm імпортується з `config/keycloak/realm-kite.json` під час першого старту
+Keycloak (`--import-realm`). Імпорт спрацьовує лише тоді, коли realm ще немає в базі:
+щоб застосувати правки у файлі, потрібен `make down-v` і новий старт.
+
+**Ролі** — realm roles з тими самими іменами, що `ActorRole` у `kite-contracts` (3.1).
+У токені вони лежать у `realm_access.roles`. Дозволи з ролі виводять самі сервіси
+(мапа в `kite-contracts`), а скоуп локації — `network.staff_assignment`; у токені їх немає.
+Усі токени мають `aud=kite-api` і живуть 5 хв, далі — refresh.
+
+**Клієнти**
+
+| Клієнт             | Тип                         | Для чого                                             |
+| ------------------ | --------------------------- | ---------------------------------------------------- |
+| `kite-web`         | public, PKCE                | http://localhost:3000; самореєстрація дає `CLIENT`   |
+| `kite-business`    | public, PKCE                | http://localhost:3001                                |
+| `kite-ops`         | public, PKCE                | http://localhost:3002                                |
+| `kite-mobile`      | public, PKCE                | `ua.kite.mobile:/oauth2redirect`, loopback `127.0.0.1` |
+| `kite-dev-cli`     | public, password grant      | Лише стенд: `make token`, інтеграційні тести         |
+| `kite-box`         | service account, `SYSTEM`   | Пристрої Kite Box                                    |
+| `kite-scanner-emu` | service account, `SYSTEM`   | Стаціонарні сканери-заглушки                         |
+| `kite-simulator`   | service account, `SYSTEM`   | Симулятор                                            |
+| `kite-users-admin` | service account, `realm-management` | Фасад `/ops/users`: лише керування користувачами |
+
+Секрети сервісних акаунтів беруться зі змінних Keycloak (`KITE_BOX_CLIENT_SECRET`
+тощо), а без них — значення за замовчуванням `<клієнт>-secret`, наприклад `kite-box-secret`.
+
+**Тестові люди** — пароль усюди `kite`, id фіксовані (`0193a000-0000-7000-8000-0000000000NN`),
+тож сид прив'язує до них профілі й `staff_assignment` без запитів до Keycloak.
+
+| Логін                     | Роль                | id (кінець) |
+| ------------------------- | ------------------- | ----------- |
+| `client`, `client-2`      | CLIENT              | …01, …02    |
+| `biz-owner`, `biz-member` | BIZ_OWNER, BIZ_MEMBER | …03, …04  |
+| `operator`                | OPERATOR            | …05         |
+| `sorter`                  | SORTER              | …06         |
+| `shift-manager`           | SHIFT_MANAGER       | …07         |
+| `driver`                  | DRIVER              | …08         |
+| `dispatcher`              | DISPATCHER          | …09         |
+| `support`                 | SUPPORT             | …10         |
+| `admin`                   | ADMIN               | …11         |
+
+Персонал (від `operator` до `admin`) входить із TOTP. Ключ спільний для стенда:
+`KiteStandTotpSecret1`, для застосунку-автентифікатора — base32
+`JNUXIZKTORQW4ZCUN52HAU3FMNZGK5BR` (TOTP, SHA1, 6 цифр, 30 с). На стенді один код
+можна використати кілька разів — щоб тести брали токени поспіль.
+
+```bash
+make token ROLE=operator        # access-токен у stdout
+make token ROLE=shift_manager V=1   # плюс payload у stderr
+curl -H "Authorization: Bearer $(make -s token ROLE=client)" http://localhost:8080/api/v1/…
+```
+
+Вхід клієнта за кодом із SMS (FR-101) ще не зроблено: поки клієнт входить за паролем.
 
 ## Структура
 
@@ -124,7 +179,7 @@ docker-compose.yml   точка входу: include stand.yml + versions.env
 stand.yml            усі сервіси стенда і профілі
 versions.env         теги образів
 config/              postgres, kafka, mosquitto, minio, keycloak, tiles, obs
-scripts/             bump, dev, tiles, check (make test), smoke
+scripts/             bump, dev, tiles, check (make test), smoke, token
 seed/                сид-дані (заглушка)
 data/tiles/          PMTiles, не в git
 ```
