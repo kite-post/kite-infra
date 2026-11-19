@@ -2,6 +2,7 @@
   "realm": "kite",
   "enabled": true,
   "displayName": "Kite",
+  "loginTheme": "kite",
   "internationalizationEnabled": true,
   "supportedLocales": [
     "uk",

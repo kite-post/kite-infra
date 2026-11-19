@@ -213,10 +213,16 @@ services:
       KC_HOSTNAME: http://localhost:8081
       KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
       JAVA_OPTS_KC_HEAP: -XX:MaxRAMPercentage=70
+      # Стенд: тема без кешу в Keycloak і в браузері — правки CSS видно після F5.
+      KC_SPI_THEME_CACHE_THEMES: "false"
+      KC_SPI_THEME_CACHE_TEMPLATES: "false"
+      KC_SPI_THEME_STATIC_MAX_AGE: "-1"
     mem_limit: 768m
     ports: ["8081:8080"]
     volumes:
-      - ./config/keycloak:/opt/keycloak/data/import:ro
+      - ./config/keycloak/import:/opt/keycloak/data/import:ro
+      # Тема входу Kite; start-dev не кешує шаблони, правки видно після F5.
+      - ./config/keycloak/themes/kite:/opt/keycloak/themes/kite:ro
     depends_on:
       postgres: { condition: service_healthy }
     healthcheck:

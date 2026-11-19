@@ -1,0 +1,259 @@
+/* Бренд Kite поверх keycloak.v2 (PatternFly 5). Токени — розділ 01 документації. */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500&family=Manrope:wght@400;500;600;700&family=Unbounded:wght@500;600&display=swap');
+
+:root {
+  --kite-coral: #ff5a36;
+  --kite-coral-hover: #e8482a;
+  --kite-ink: #0e1a2b;
+  --kite-sky: #2e6bff;
+  --kite-paper: #f7f4ee;
+  --kite-mist: #e6e9ef;
+  --kite-muted: #5b6676;
+  --kite-surface: #ffffff;
+  --kite-field: #ffffff;
+  --kite-danger: #e5484d;
+  --kite-success: #1f9d6b;
+  --kite-warning: #f2a93b;
+
+  --kite-font: 'Manrope', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --kite-font-heading: 'Unbounded', 'Manrope', system-ui, sans-serif;
+}
+
+.pf-v5-theme-dark {
+  --kite-ink: #eef2f7;
+  --kite-paper: #0b1220;
+  --kite-surface: #142033;
+  --kite-field: #0f1a2b;
+  --kite-mist: #24324a;
+  --kite-muted: #95a3bb;
+  --kite-sky: #6f9bff;
+}
+
+/* PatternFly-змінні — через них фарбуються всі стандартні сторінки входу. */
+:root,
+.pf-v5-theme-dark {
+  --pf-v5-global--FontFamily--text: var(--kite-font);
+  --pf-v5-global--FontFamily--heading: var(--kite-font-heading);
+  --pf-v5-global--primary-color--100: var(--kite-coral);
+  --pf-v5-global--primary-color--200: var(--kite-coral-hover);
+  --pf-v5-global--link--Color: var(--kite-sky);
+  --pf-v5-global--link--Color--hover: var(--kite-sky);
+  --pf-v5-global--Color--100: var(--kite-ink);
+  --pf-v5-global--Color--200: var(--kite-muted);
+  --pf-v5-global--BackgroundColor--100: var(--kite-surface);
+  --pf-v5-global--danger-color--100: var(--kite-danger);
+  --pf-v5-global--success-color--100: var(--kite-success);
+  --pf-v5-global--warning-color--100: var(--kite-warning);
+  --pf-v5-global--BorderColor--100: var(--kite-mist);
+  --pf-v5-global--active-color--100: var(--kite-coral);
+
+}
+
+/* PatternFly оголошує змінні компонентів на самих компонентах (і перевизначає
+   їх у темній темі), тож перекриваємо їх там же, з вищою специфічністю. */
+html .pf-v5-c-button {
+  --pf-v5-c-button--m-primary--BackgroundColor: var(--kite-coral);
+  --pf-v5-c-button--m-primary--hover--BackgroundColor: var(--kite-coral-hover);
+  --pf-v5-c-button--m-primary--focus--BackgroundColor: var(--kite-coral-hover);
+  --pf-v5-c-button--m-primary--active--BackgroundColor: var(--kite-coral-hover);
+  --pf-v5-c-button--m-primary--Color: #fff;
+  --pf-v5-c-button--m-primary--hover--Color: #fff;
+  --pf-v5-c-button--m-secondary--Color: var(--kite-ink);
+  --pf-v5-c-button--m-secondary--BorderColor: var(--kite-mist);
+  --pf-v5-c-button--m-secondary--hover--BorderColor: var(--kite-coral);
+  --pf-v5-c-button--m-secondary--hover--Color: var(--kite-ink);
+  --pf-v5-c-button--BorderRadius: 999px;
+  --pf-v5-c-button--PaddingTop: 0.625rem;
+  --pf-v5-c-button--PaddingBottom: 0.625rem;
+  --pf-v5-c-button--FontWeight: 600;
+}
+
+html .pf-v5-c-form-control {
+  --pf-v5-c-form-control--BorderRadius: 8px;
+  --pf-v5-c-form-control--before--BorderColor: var(--kite-mist);
+  --pf-v5-c-form-control--after--BorderColor: transparent;
+  --pf-v5-c-form-control--hover--after--BorderColor: var(--kite-coral);
+  --pf-v5-c-form-control--focus--after--BorderColor: var(--kite-coral);
+  --pf-v5-c-form-control--BackgroundColor: var(--kite-surface);
+  --pf-v5-c-form-control--Color: var(--kite-ink);
+}
+
+html .pf-v5-c-check__input {
+  accent-color: var(--kite-coral);
+}
+
+.login-pf body {
+  background: var(--kite-paper);
+  color: var(--kite-ink);
+  font-family: var(--kite-font);
+}
+
+/* Легкий «слід змія» у фоні, без картинок. */
+.login-pf body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(60rem 30rem at 110% -10%, rgba(255, 90, 54, 0.12), transparent 60%),
+    radial-gradient(40rem 24rem at -10% 110%, rgba(46, 107, 255, 0.08), transparent 60%);
+}
+
+.pf-v5-c-login__container {
+  grid-template-columns: minmax(0, 28rem);
+  position: relative;
+}
+
+/* Шапка: знак-ромб і словесний знак. */
+#kc-header {
+  padding-block: 2rem 1.5rem;
+}
+
+#kc-header-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  font-family: var(--kite-font-heading);
+  font-size: 2rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  /* keycloak.v2 фарбує шапку в білий з !important. */
+  color: var(--kite-ink) !important;
+  text-transform: none;
+}
+
+#kc-header-wrapper::before {
+  content: '';
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: none;
+  background: url('../img/logo.svg') center / contain no-repeat;
+}
+
+/* Картка: радіус 12, без синьої смуги PatternFly. */
+.pf-v5-c-login__main {
+  background: var(--kite-surface);
+  border-radius: 12px;
+  border: 1px solid var(--kite-mist);
+  box-shadow: 0 12px 32px -16px rgba(14, 26, 43, 0.25);
+  overflow: hidden;
+}
+
+.pf-v5-c-login__main-header {
+  border-top: 0;
+  padding-top: 2rem;
+}
+
+#kc-page-title {
+  font-family: var(--kite-font-heading);
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--kite-ink);
+}
+
+.pf-v5-c-form__label-text {
+  font-weight: 600;
+}
+
+/* Поля: власна рамка замість підкреслення PatternFly, коралове кільце фокусу. */
+html .pf-v5-c-form-control {
+  --pf-v5-c-form-control--BackgroundColor: var(--kite-field);
+  background: var(--kite-field);
+  border: 1px solid var(--kite-mist);
+  border-radius: 8px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+html .pf-v5-c-form-control::before,
+html .pf-v5-c-form-control::after {
+  border: 0;
+}
+
+html .pf-v5-c-form-control:hover {
+  border-color: color-mix(in srgb, var(--kite-coral) 50%, var(--kite-mist));
+}
+
+html .pf-v5-c-form-control > :is(input, select, textarea):focus {
+  outline: none;
+}
+
+html .pf-v5-c-form-control:focus-within {
+  border-color: var(--kite-coral);
+  box-shadow: 0 0 0 3px rgba(255, 90, 54, 0.2);
+}
+
+html .pf-v5-c-form-control.pf-m-error,
+html .pf-v5-c-form-control:has([aria-invalid='true']) {
+  border-color: var(--kite-danger);
+}
+
+/* Пароль + «око»: одна рамка на групу. */
+html .pf-v5-c-input-group {
+  gap: 0;
+}
+
+html .pf-v5-c-input-group__item.pf-m-fill .pf-v5-c-form-control {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+
+html .pf-v5-c-input-group .pf-v5-c-button.pf-m-control {
+  background: var(--kite-field);
+  color: var(--kite-muted);
+  border: 1px solid var(--kite-mist);
+  border-inline-start: 0;
+  border-radius: 0 8px 8px 0;
+  height: 100%;
+}
+
+html .pf-v5-c-input-group .pf-v5-c-button.pf-m-control::after {
+  border: 0;
+}
+
+html .pf-v5-c-input-group .pf-v5-c-button.pf-m-control:hover {
+  color: var(--kite-ink);
+}
+
+.pf-v5-c-form-control > input,
+.pf-v5-c-form-control > select {
+  font-family: var(--kite-font);
+}
+
+/* Поле коду TOTP — моноширинне і крупне. */
+#otp {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 1.25rem;
+  letter-spacing: 0.3em;
+}
+
+.pf-v5-c-button.pf-m-primary {
+  box-shadow: 0 6px 16px -8px rgba(255, 90, 54, 0.7);
+}
+
+.pf-v5-c-login__main-footer-band {
+  border-top: 1px solid var(--kite-mist);
+  background: transparent;
+}
+
+.pf-v5-c-alert {
+  border-radius: 8px;
+}
+
+/* Слоган під карткою. */
+.pf-v5-c-login__container::after {
+  content: 'Доставка, що летить';
+  display: block;
+  text-align: center;
+  margin-top: 1.5rem;
+  font-size: 0.875rem;
+  color: var(--kite-muted);
+}
+
+@media (max-width: 36rem) {
+  .pf-v5-c-login__main {
+    border-radius: 0;
+    border-inline: 0;
+  }
+}

@@ -118,9 +118,16 @@ make dev SERVICE=shipment-service
 
 ## Keycloak: realm `kite`
 
-Realm імпортується з `config/keycloak/realm-kite.json` під час першого старту
+Realm імпортується з `config/keycloak/import/realm-kite.json` під час першого старту
 Keycloak (`--import-realm`). Імпорт спрацьовує лише тоді, коли realm ще немає в базі:
 щоб застосувати правки у файлі, потрібен `make down-v` і новий старт.
+
+**Тема входу** — `config/keycloak/themes/kite`: `keycloak.v2` (PatternFly 5) плюс
+стилі й тексти бренду з розділу 01 — коралові кнопки-«таблетки», Unbounded і Manrope,
+знак-ромб, світла й темна тема за налаштуванням системи. Шаблони FreeMarker не
+перевизначені, тому оновлення Keycloak тему не ламають. На стенді кеш тем вимкнено:
+правка `kite.css` видна після F5, без перезапуску. Шрифти тягнуться з Google Fonts;
+без інтернету сторінка працює на системних шрифтах.
 
 **Ролі** — realm roles з тими самими іменами, що `ActorRole` у `kite-contracts` (3.1).
 У токені вони лежать у `realm_access.roles`. Дозволи з ролі виводять самі сервіси
