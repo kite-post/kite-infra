@@ -4,6 +4,11 @@
 #
 #   scripts/bump.sh shipment-service sha-1a2b3c4
 #   scripts/bump.sh shipment-service v1.2.0
+#
+# Дія bump-infra-version клонує kite-infra і викликає саме цей скрипт, тож
+# правила (які теги дозволені, що робити з невідомим сервісом) живуть тут.
+# Код виходу 0 — і коли рядок змінено, і коли тег уже такий; чи є що
+# комітити, дія дивиться через git diff. 1/2 — відмова.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -43,4 +48,7 @@ cat "$tmp" > "$file"
 rm -f "$tmp"
 
 echo "$key: $current → $tag"
-echo "Далі: make pull && make up   (або закомітити versions.env і відкрити PR)"
+# У CI (GitHub Actions ставить CI=true) підказка для людини зайва.
+if [ "${CI:-}" != "true" ]; then
+  echo "Далі: make pull && make up   (або закомітити versions.env і відкрити PR)"
+fi
